@@ -80,6 +80,36 @@ Make sure you have the following installed:
 
 ## 🛠️ Development Workflow
 
+### Local whitenoise-rs Development
+
+This project uses a local copy of the `whitenoise-rs` backend library for development. Changes to the whitenoise-rs repository will automatically reflect when you rebuild.
+
+**Setup:**
+
+The project is configured to use the local whitenoise-rs repository at:
+`/home/william/Projects/Repo/whitenoise-rs`
+
+This is configured in `rust/Cargo.toml`:
+```toml
+whitenoise = { version = "0.1.0", path = "/home/william/Projects/Repo/whitenoise-rs", features = ["insecure-local-signer"] }
+```
+
+**Workflow for making changes to whitenoise-rs:**
+
+1. Make your changes in the `whitenoise-rs` repository
+2. Return to this project (whitenoise)
+3. Rebuild the Rust code:
+   ```bash
+   just regenerate  # Regenerate bridge code if API changed
+   just build-rust-debug  # Build the Rust library
+   ```
+4. Run the app:
+   ```bash
+   flutter run
+   ```
+
+**Note:** If you modify the public API in whitenoise-rs, you may need to update the wrapper code in `rust/src/api/` to match the new API.
+
 ### Essential Commands
 
 ```bash
