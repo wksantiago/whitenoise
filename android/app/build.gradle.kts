@@ -8,7 +8,7 @@ plugins {
 android {
     namespace = "org.parres.whitenoise"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    ndkVersion = "28.2.13676358"
 
     // Set the base name for APK files
     setProperty("archivesBaseName", "whitenoise")
@@ -27,7 +27,6 @@ android {
         applicationId = "org.parres.whitenoise"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
-        ndkVersion = "27.0.12077973"
         versionCode = flutter.versionCode
         versionName = flutter.versionName
 
