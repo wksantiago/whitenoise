@@ -56,5 +56,14 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+
+        <!-- Query for Amber signer app (NIP-55) -->
+        <package android:name="com.greenart7c3.nostrsigner" />
+
+        <!-- Query for nostrsigner: URI scheme -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="nostrsigner" />
+        </intent>
     </queries>
 </manifest>

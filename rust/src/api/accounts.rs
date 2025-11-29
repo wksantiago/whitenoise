@@ -82,6 +82,68 @@ pub async fn login(nsec_or_hex_privkey: String) -> Result<Account, ApiError> {
     Ok(account.into())
 }
 
+/// Login with Amber signer (Android only).
+///
+/// This is the recommended login method on Android as it delegates all signing
+/// operations to the Amber app, ensuring private keys never enter this process.
+///
+/// # Arguments
+/// * `pubkey` - The public key (hex or npub format) obtained from Amber
+///
+/// # Platform
+/// This function is only available on Android. On other platforms, it returns an error.
+#[frb]
+pub async fn login_with_amber(pubkey: String) -> Result<Account, ApiError> {
+    #[cfg(target_os = "android")]
+    {
+        let whitenoise = Whitenoise::get_instance()?;
+        let pubkey = PublicKey::parse(&pubkey)?;
+        let account = whitenoise.login_with_amber(pubkey).await?;
+        Ok(account.into())
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = pubkey;
+        Err(ApiError::Other {
+            message: "Amber signer is only available on Android".to_string(),
+        })
+    }
+}
+
+/// Login with a custom Amber-compatible signer (Android only).
+///
+/// Similar to `login_with_amber` but allows specifying a custom signer app
+/// package name for non-standard Amber installations or alternative NIP-55 signers.
+///
+/// # Arguments
+/// * `pubkey` - The public key (hex or npub format) obtained from the signer
+/// * `package_name` - The package name of the signer app (e.g., "com.greenart7c3.nostrsigner")
+///
+/// # Platform
+/// This function is only available on Android. On other platforms, it returns an error.
+#[frb]
+pub async fn login_with_amber_custom(
+    pubkey: String,
+    package_name: String,
+) -> Result<Account, ApiError> {
+    #[cfg(target_os = "android")]
+    {
+        let whitenoise = Whitenoise::get_instance()?;
+        let pubkey = PublicKey::parse(&pubkey)?;
+        let account = whitenoise
+            .login_with_amber_custom(pubkey, package_name)
+            .await?;
+        Ok(account.into())
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = (pubkey, package_name);
+        Err(ApiError::Other {
+            message: "Amber signer is only available on Android".to_string(),
+        })
+    }
+}
+
 #[frb]
 pub async fn logout(pubkey: String) -> Result<(), ApiError> {
     let whitenoise = Whitenoise::get_instance()?;

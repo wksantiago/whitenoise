@@ -27,6 +27,38 @@ Future<Account> login({required String nsecOrHexPrivkey}) => RustLib
     .api
     .crateApiAccountsLogin(nsecOrHexPrivkey: nsecOrHexPrivkey);
 
+/// Login with Amber signer (Android only).
+///
+/// This is the recommended login method on Android as it delegates all signing
+/// operations to the Amber app, ensuring private keys never enter this process.
+///
+/// # Arguments
+/// * `pubkey` - The public key (hex or npub format) obtained from Amber
+///
+/// # Platform
+/// This function is only available on Android. On other platforms, it returns an error.
+Future<Account> loginWithAmber({required String pubkey}) =>
+    RustLib.instance.api.crateApiAccountsLoginWithAmber(pubkey: pubkey);
+
+/// Login with a custom Amber-compatible signer (Android only).
+///
+/// Similar to `login_with_amber` but allows specifying a custom signer app
+/// package name for non-standard Amber installations or alternative NIP-55 signers.
+///
+/// # Arguments
+/// * `pubkey` - The public key (hex or npub format) obtained from the signer
+/// * `package_name` - The package name of the signer app (e.g., "com.greenart7c3.nostrsigner")
+///
+/// # Platform
+/// This function is only available on Android. On other platforms, it returns an error.
+Future<Account> loginWithAmberCustom({
+  required String pubkey,
+  required String packageName,
+}) => RustLib.instance.api.crateApiAccountsLoginWithAmberCustom(
+  pubkey: pubkey,
+  packageName: packageName,
+);
+
 Future<void> logout({required String pubkey}) =>
     RustLib.instance.api.crateApiAccountsLogout(pubkey: pubkey);
 

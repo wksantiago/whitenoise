@@ -67,6 +67,10 @@ pub mod utils;
 pub use utils::{group_id_from_string, group_id_to_string};
 pub mod welcomes;
 
+// Android-specific JNI module for Amber signer integration
+#[cfg(target_os = "android")]
+pub mod android;
+
 // Re-export everything
 pub use accounts::*;
 pub use error::*;
