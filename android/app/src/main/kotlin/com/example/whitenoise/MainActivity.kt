@@ -82,6 +82,9 @@ class MainActivity: FlutterActivity() {
             } else {
                 Log.w(TAG, "Failed to initialize Rust Android context")
             }
+        } catch (e: UnsatisfiedLinkError) {
+            // JNI function not found - library may need to be rebuilt with android.rs module
+            Log.w(TAG, "Rust Android context JNI not available - Amber signer via content provider disabled", e)
         } catch (e: Exception) {
             Log.e(TAG, "Error initializing Rust Android context", e)
         }

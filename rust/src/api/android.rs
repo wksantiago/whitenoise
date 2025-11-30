@@ -32,21 +32,16 @@ use jni::JNIEnv;
 /// # Returns
 ///
 /// Returns `true` if initialization succeeded, `false` otherwise.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn Java_org_parres_whitenoise_RustBridge_initAndroidContext(
     mut env: JNIEnv,
     _class: JClass,
     content_resolver: JObject,
 ) -> bool {
-    match whitenoise::Whitenoise::init_android_context(&mut env, &content_resolver) {
-        Ok(()) => {
-            tracing::info!(target: "whitenoise::android", "Android context initialized successfully");
-            true
-        }
-        Err(e) => {
-            tracing::error!(target: "whitenoise::android", "Failed to initialize Android context: {:?}", e);
-            false
-        }
+    // SAFETY: The caller (Kotlin/Java) guarantees env and content_resolver are valid
+    match unsafe { whitenoise::Whitenoise::init_android_context(&mut env, &content_resolver) } {
+        Ok(()) => true,
+        Err(_e) => false,
     }
 }
 
@@ -58,10 +53,10 @@ pub unsafe extern "C" fn Java_org_parres_whitenoise_RustBridge_initAndroidContex
 /// # Returns
 ///
 /// Returns `true` if the Android context is initialized, `false` otherwise.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn Java_org_parres_whitenoise_RustBridge_isAndroidContextInitialized(
     _env: JNIEnv,
     _class: JClass,
 ) -> bool {
-    whitenoise::whitenoise::signers::android_context::get().is_some()
+    whitenoise::Whitenoise::is_android_context_initialized()
 }
