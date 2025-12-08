@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -5,6 +7,7 @@ import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:whitenoise/config/extensions/toast_extension.dart';
 import 'package:whitenoise/config/providers/auth_provider.dart';
+import 'package:whitenoise/domain/services/amber_signer_service.dart';
 import 'package:whitenoise/routing/routes.dart';
 import 'package:whitenoise/ui/auth_flow/auth_header.dart';
 import 'package:whitenoise/ui/auth_flow/qr_scanner_screen.dart';
@@ -30,6 +33,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WidgetsBindingOb
   final ScrollController _scrollController = ScrollController();
   final FocusNode _focusNode = FocusNode();
   bool _wasKeyboardVisible = false;
+  bool _isAmberAvailable = false;
 
   @override
   void initState() {
@@ -38,6 +42,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WidgetsBindingOb
     _keyController.addListener(() {
       setState(() {});
     });
+    _checkAmberAvailability();
+  }
+
+  Future<void> _checkAmberAvailability() async {
+    if (Platform.isAndroid) {
+      final isAvailable = await AmberSignerService.isAmberInstalled();
+      if (mounted) {
+        setState(() {
+          _isAmberAvailable = isAvailable;
+        });
+      }
+    }
   }
 
   @override
@@ -103,6 +119,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WidgetsBindingOb
     if (scannedCode != null && scannedCode.isNotEmpty) {
       _keyController.text = scannedCode;
       setState(() {});
+    }
+  }
+
+  Future<void> _onLoginWithAmberPressed() async {
+    final authNotifier = ref.read(authProvider.notifier);
+
+    await authNotifier.loginWithAmber();
+
+    final authState = ref.read(authProvider);
+
+    if (authState.isAuthenticated && authState.error == null) {
+      if (!mounted) return;
+      context.go(Routes.chats);
+    } else if (authState.error != null) {
+      if (!mounted) return;
+      ref.showErrorToast(authState.error!);
     }
   }
 
@@ -211,6 +243,38 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with WidgetsBindingOb
                           );
                         },
                       ),
+                      // Amber login option (Android only)
+                      if (Platform.isAndroid && _isAmberAvailable) ...[
+                        Gap(16.h),
+                        Row(
+                          children: [
+                            Expanded(child: Divider(color: context.colors.border)),
+                            Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 16.w),
+                              child: Text(
+                                'auth.or'.tr(),
+                                style: TextStyle(
+                                  fontSize: 14.sp,
+                                  color: context.colors.border,
+                                ),
+                              ),
+                            ),
+                            Expanded(child: Divider(color: context.colors.border)),
+                          ],
+                        ),
+                        Gap(16.h),
+                        Consumer(
+                          builder: (context, ref, child) {
+                            final authState = ref.watch(authProvider);
+                            return WnFilledButton(
+                              loading: authState.isLoading,
+                              onPressed: _onLoginWithAmberPressed,
+                              label: 'auth.loginWithAmber'.tr(),
+                              visualState: WnButtonVisualState.secondary,
+                            );
+                          },
+                        ),
+                      ],
                       Gap(16.h),
                     ],
                   ),
