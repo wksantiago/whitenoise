@@ -246,6 +246,8 @@
         "qrCodeDetected": "QR Code Detected!",
         "scanYourPrivateKeyQr": "Scan your Private Key QR code.",
         "pleaseEnterPrivateKey": "Please enter your private key",
+        "or": "or",
+        "loginWithAmber": "Login with Amber",
         "setUpProfile": "Set Up Profile",
         "finish": "Finish",
         "privacySecuritySubtitle": "Keep your conversations private. Even in case of a breach, your messages remain secure.",

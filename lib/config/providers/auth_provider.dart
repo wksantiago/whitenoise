@@ -8,8 +8,10 @@ import 'package:whitenoise/config/providers/active_account_provider.dart';
 import 'package:whitenoise/config/providers/active_pubkey_provider.dart';
 import 'package:whitenoise/config/providers/avatar_color_provider.dart';
 import 'package:whitenoise/config/states/auth_state.dart';
+import 'package:whitenoise/domain/services/amber_signer_service.dart';
 import 'package:whitenoise/src/rust/api.dart' show createWhitenoiseConfig, initializeWhitenoise;
-import 'package:whitenoise/src/rust/api/accounts.dart';
+import 'package:whitenoise/src/rust/api/accounts.dart' as rust_accounts;
+import 'package:whitenoise/src/rust/api/accounts.dart' show Account;
 import 'package:whitenoise/src/rust/api/error.dart' show ApiError;
 import 'package:whitenoise/utils/pubkey_formatter.dart';
 
@@ -46,7 +48,7 @@ class AuthNotifier extends Notifier<AuthState> {
 
       /// 3. Auto-login if an account is already active
       try {
-        final accounts = await getAccounts();
+        final accounts = await rust_accounts.getAccounts();
         if (accounts.isNotEmpty) {
           // Wait for active account provider to load from storage first
           final activePubkeyNotifier = ref.read(activePubkeyProvider.notifier);
@@ -93,7 +95,7 @@ class AuthNotifier extends Notifier<AuthState> {
     state = state.copyWith(isLoading: true, error: null);
 
     try {
-      final account = await createIdentity();
+      final account = await rust_accounts.createIdentity();
 
       // Get the newly created account data and set it as active
       await ref.read(activePubkeyProvider.notifier).setActivePubkey(account.pubkey);
@@ -118,7 +120,7 @@ class AuthNotifier extends Notifier<AuthState> {
     state = state.copyWith(error: null);
 
     try {
-      final account = await createIdentity();
+      final account = await rust_accounts.createIdentity();
 
       // Get the newly created account data and set it as active
       await ref.read(activePubkeyProvider.notifier).setActivePubkey(account.pubkey);
@@ -144,14 +146,14 @@ class AuthNotifier extends Notifier<AuthState> {
       // Save existing accounts (before login)
       List<Account> existingAccounts = [];
       try {
-        existingAccounts = await getAccounts();
+        existingAccounts = await rust_accounts.getAccounts();
         _logger.info('Existing accounts before login: ${existingAccounts.length}');
       } catch (e) {
         _logger.info('No existing accounts or error fetching: $e');
       }
 
       /// 1. Perform login using Rust API
-      final account = await login(nsecOrHexPrivkey: nsecOrPrivkey);
+      final account = await rust_accounts.login(nsecOrHexPrivkey: nsecOrPrivkey);
       _logger.info('Login successful, account created');
 
       // Get the logged in account data and set it as active
@@ -169,7 +171,7 @@ class AuthNotifier extends Notifier<AuthState> {
 
       // Check account count after login
       try {
-        final accountsAfterLogin = await getAccounts();
+        final accountsAfterLogin = await rust_accounts.getAccounts();
         _logger.info('Accounts after login: ${accountsAfterLogin.length}');
 
         // Check that the active account is set correctly
@@ -216,7 +218,7 @@ class AuthNotifier extends Notifier<AuthState> {
 
     try {
       /// 1. Perform login using Rust API
-      final account = await login(nsecOrHexPrivkey: nsecOrPrivkey);
+      final account = await rust_accounts.login(nsecOrHexPrivkey: nsecOrPrivkey);
 
       // Account logged in successfully
 
@@ -248,6 +250,95 @@ class AuthNotifier extends Notifier<AuthState> {
     }
   }
 
+  /// Login with Amber signer (Android only).
+  ///
+  /// This is the recommended login method on Android as it delegates all signing
+  /// operations to the Amber app, ensuring private keys never enter this app's
+  /// process memory.
+  ///
+  /// The flow is:
+  /// 1. Launch Amber to get the user's public key
+  /// 2. Call the Rust backend with the public key to create/load the account
+  /// 3. All future signing operations are delegated to Amber
+  Future<void> loginWithAmber() async {
+    if (!Platform.isAndroid) {
+      state = state.copyWith(error: 'Amber is only available on Android');
+      return;
+    }
+
+    if (!state.isAuthenticated) {
+      await initialize();
+    }
+
+    state = state.copyWith(isLoading: true, error: null);
+
+    try {
+      // Check if Amber is installed
+      final isInstalled = await AmberSignerService.isAmberInstalled();
+      if (!isInstalled) {
+        state = state.copyWith(
+          error: 'Amber signer is not installed. Please install Amber from the Play Store.',
+          isLoading: false,
+        );
+        return;
+      }
+
+      // Get the public key from Amber
+      _logger.info('Requesting public key from Amber...');
+      final pubkey = await AmberSignerService.getPublicKey();
+      _logger.info('Got public key from Amber: $pubkey');
+
+      // Login with Amber using the Rust API
+      final account = await rust_accounts.loginWithAmber(pubkey: pubkey);
+      _logger.info('Login with Amber successful, account created');
+
+      // Set authenticated state first
+      state = state.copyWith(isAuthenticated: true);
+
+      // Then set the active account
+      await ref.read(activePubkeyProvider.notifier).setActivePubkey(account.pubkey);
+      _logger.info('Set active account: ${account.pubkey}');
+
+      await ref.read(activeAccountProvider.future);
+      _logger.info('Account data loaded');
+    } on AmberNotInstalledException catch (e) {
+      _logger.warning('Amber not installed: $e');
+      state = state.copyWith(
+        error: 'Amber signer is not installed. Please install Amber from the Play Store.',
+      );
+    } on AmberUserCancelledException catch (e) {
+      _logger.info('User cancelled Amber login: $e');
+      state = state.copyWith(error: 'Login cancelled');
+    } on AmberException catch (e) {
+      _logger.warning('Amber error: $e');
+      state = state.copyWith(error: 'Amber error: ${e.message}');
+    } catch (e, st) {
+      String errorMessage;
+
+      if (e is ApiError) {
+        errorMessage = await e.messageText();
+        _logger.warning('loginWithAmber failed: $errorMessage');
+      } else {
+        errorMessage = e.toString();
+        _logger.severe('loginWithAmber unexpected error', e, st);
+      }
+
+      state = state.copyWith(error: errorMessage);
+    } finally {
+      state = state.copyWith(isLoading: false);
+    }
+  }
+
+  /// Check if Amber signer is available on this device.
+  ///
+  /// Returns true if running on Android and Amber is installed.
+  Future<bool> isAmberAvailable() async {
+    if (!Platform.isAndroid) {
+      return false;
+    }
+    return await AmberSignerService.isAmberInstalled();
+  }
+
   /// Get the currently active account (if any)
   Future<Account?> getCurrentActiveAccount() async {
     if (!state.isAuthenticated) {
@@ -255,7 +346,7 @@ class AuthNotifier extends Notifier<AuthState> {
     }
     try {
       // Try to get accounts and find the first one (active account)
-      final accounts = await getAccounts();
+      final accounts = await rust_accounts.getAccounts();
       if (accounts.isNotEmpty) {
         // Return the first account as the active one
         // In a real implementation, you might want to store which account is active
@@ -277,13 +368,13 @@ class AuthNotifier extends Notifier<AuthState> {
       final activeAccountState = await ref.read(activeAccountProvider.future);
       final activeAccount = activeAccountState.account;
       if (activeAccount != null) {
-        await logout(pubkey: activeAccount.pubkey);
+        await rust_accounts.logout(pubkey: activeAccount.pubkey);
 
         // Clear the active account
         await ref.read(activePubkeyProvider.notifier).clearActivePubkey();
 
         // Check if there are other accounts available
-        final remainingAccounts = await getAccounts();
+        final remainingAccounts = await rust_accounts.getAccounts();
         // Normalize pubkeys to hex then filter
         final activeHex = PubkeyFormatter(pubkey: activeAccount.pubkey).toHex();
         final otherAccounts = <Account>[];
@@ -316,7 +407,7 @@ class AuthNotifier extends Notifier<AuthState> {
         }
       } else {
         // No active account to logout, but check if any accounts exist
-        final accounts = await getAccounts();
+        final accounts = await rust_accounts.getAccounts();
         if (accounts.isNotEmpty) {
           // Set the first account as active
           await ref.read(activePubkeyProvider.notifier).setActivePubkey(accounts.first.pubkey);
