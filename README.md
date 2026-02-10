@@ -1,3 +1,13 @@
+> [!CAUTION]
+> ## This repository has been archived
+> This repo is no longer maintained. Active development has moved to:
+>
+> **[github.com/marmot-protocol/whitenoise](https://github.com/marmot-protocol/whitenoise)**
+>
+> Please open all new issues and pull requests there.
+
+---
+
 # White Noise
 
 A secure, private, and decentralized chat app built on Nostr, using the MLS protocol under the hood.
